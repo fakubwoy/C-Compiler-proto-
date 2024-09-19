@@ -31,3 +31,7 @@ Prototype C compiler written in C++ that aims to compile basic arithmetic operat
 7. **Convert to Assembly**
    - Convert the intermediate code to assembly language (x86).
    - Output: x86 assembly code.
+
+# ToDo:
+- Basic arithmetic had been handled
+- Variable and function definition left
