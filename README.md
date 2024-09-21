@@ -24,7 +24,7 @@ Prototype C compiler written in C++ that aims to compile basic arithmetic operat
    - Generate the three-address code (TAC) from the AST.
    - Output: TAC representation of the code.
 
-6. **Code Optimization** (Optional)
+6. **Code Optimization**
    - Optimize the intermediate code for performance.
    - Output: Optimized TAC.
 
