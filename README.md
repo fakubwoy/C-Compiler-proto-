@@ -1,6 +1,6 @@
 # C-Compiler-proto
 
-Prototype C compiler written in C++ that aims to compile basic arithmetic operations in C, with the possibility of handling functions if time permits. The compiler will showcase the output for each phase of the compilation process.
+Prototype C compiler written in C++
 
 ## Phases of Compilation
 
