@@ -34,4 +34,5 @@ Prototype C compiler written in C++ that aims to compile basic arithmetic operat
 
 # ToDo:
 - Basic arithmetic has been handled
-- Variable and function definition left
+- Variables have been handled
+- Function definition left
