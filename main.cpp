@@ -8,17 +8,17 @@
 #include <algorithm>
 #include <unordered_set>
 enum class TokenType {
-    INTEGER,
-    IDENTIFIER,
-    PLUS,
-    MINUS,
-    MULTIPLY,
-    DIVIDE,
-    LPAREN,
-    RPAREN,
-    SEMICOLON,
-    ASSIGN,
-    EOF_TOKEN
+    INTEGER,//0
+    IDENTIFIER,//1
+    PLUS,//2
+    MINUS,//3
+    MULTIPLY,//4
+    DIVIDE,//5
+    LPAREN,//6
+    RPAREN,//7
+    SEMICOLON,//8
+    ASSIGN,//9
+    EOF_TOKEN//10
 };
 
 struct Token {
