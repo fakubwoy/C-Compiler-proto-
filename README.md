@@ -1,6 +1,6 @@
 # C-Compiler-proto
 
-Prototype C compiler written in C++ that aims to compile basic arithmetic operations in C, with the possibility of handling functions if time permits. The compiler will showcase the output for each phase of the compilation process.
+Prototype C compiler written in C++
 
 ## Phases of Compilation
 
@@ -24,7 +24,7 @@ Prototype C compiler written in C++ that aims to compile basic arithmetic operat
    - Generate the three-address code (TAC) from the AST.
    - Output: TAC representation of the code.
 
-6. **Code Optimization** (Optional)
+6. **Code Optimization**
    - Optimize the intermediate code for performance.
    - Output: Optimized TAC.
 
@@ -34,4 +34,6 @@ Prototype C compiler written in C++ that aims to compile basic arithmetic operat
 
 # ToDo:
 - Basic arithmetic has been handled
-- Variable and function definition left
+- Variables have been handled
+- Basic boolean comparison left (if-else)
+- Function definition left
