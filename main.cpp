@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <memory>
 #include <algorithm>
-
+#include <unordered_set>
 enum class TokenType {
     INTEGER,
     IDENTIFIER,
@@ -407,86 +407,175 @@ private:
 class AssemblyCodeGenerator {
 private:
     std::vector<std::string> assembly;
-    int stackOffset = 0;
     std::unordered_map<std::string, int> variableOffsets;
-
-    std::string getStackLocation(const std::string& var) {
-        if (variableOffsets.find(var) == variableOffsets.end()) {
-            stackOffset += 4;
-            variableOffsets[var] = stackOffset;
+    std::unordered_set<std::string> allocatedVariables;
+    int nextOffset = 4;
+    std::string getVariableOffset(const std::string& var) {
+        if (variableOffsets.find(var) == variableOffsets.end() && !isTemporary(var)) {
+            if (allocatedVariables.find(var) == allocatedVariables.end()) {
+                variableOffsets[var] = nextOffset;
+                allocatedVariables.insert(var);
+                nextOffset += 4;
+            }
         }
-        return "dword [ebp - " + std::to_string(variableOffsets[var]) + "]";
+        return (variableOffsets.find(var) != variableOffsets.end())
+               ? "dword [ebp - " + std::to_string(variableOffsets[var]) + "]"
+               : var;
+    }
+
+    bool isTemporary(const std::string& var) {
+        return var[0] == 't';
+    }
+
+    bool isInteger(const std::string& s) {
+        return !s.empty() && s.find_first_not_of("0123456789-") == std::string::npos;
     }
 
 public:
     std::vector<std::string> generateAssembly(const std::vector<std::string>& tac) {
-        assembly.clear();
-        stackOffset = 0;
-        variableOffsets.clear();
+    assembly.clear();
+    variableOffsets.clear();
+    allocatedVariables.clear();
+    nextOffset = 4;
 
-        assembly.push_back("section .text");
-        assembly.push_back("global _start");
-        assembly.push_back("_start:");
-        assembly.push_back("    push ebp");
-        assembly.push_back("    mov ebp, esp");
+    assembly.push_back("section .text");
+    assembly.push_back("global _start");
+    assembly.push_back("_start:");
+    assembly.push_back("    push ebp");
+    assembly.push_back("    mov ebp, esp");
 
-        for (const auto& instr : tac) {
-            std::istringstream iss(instr);
-            std::string result, eq, op1, op, op2;
-            iss >> result >> eq;
-
-            if (result == "return") {
-                iss >> op1;
-                if (isInteger(op1)) {
-                    assembly.push_back("    mov eax, " + op1); 
-                } else {
-                    assembly.push_back("    mov eax, " + getStackLocation(op1));
-                }
-                assembly.push_back("    mov esp, ebp");
-                assembly.push_back("    pop ebp");
-                assembly.push_back("    ret");
-            } else if (eq == "=") {
-                iss >> op1;
-                if (iss >> op >> op2) {
-                   
-                    assembly.push_back("    mov eax, " + getStackLocation(op1));
-                    if (op == "+") {
-                        assembly.push_back("    add eax, " + getStackLocation(op2));
-                    } else if (op == "-") {
-                        assembly.push_back("    sub eax, " + getStackLocation(op2));
-                    } else if (op == "*") {
-                        assembly.push_back("    imul eax, " + getStackLocation(op2));
-                    } else if (op == "/") {
-                        assembly.push_back("    cdq");
-                        assembly.push_back("    mov ecx, " + getStackLocation(op2));
-                        assembly.push_back("    idiv ecx");
-                    }
-                    assembly.push_back("    mov " + getStackLocation(result) + ", eax");
-                } else {
-                    if (isInteger(op1)) {
-                        assembly.push_back("    mov " + getStackLocation(result) + ", " + op1);
-                    } else {
-                        std::string op1Loc = getStackLocation(op1);
-                        assembly.push_back("    mov eax, " + op1Loc); 
-                        assembly.push_back("    mov " + getStackLocation(result) + ", eax");  
-                    }
+    for (const auto& instruction : tac) {
+        std::istringstream iss(instruction);
+        std::string result, eq, op1, op, op2;
+        iss >> result >> eq;
+        if (eq == "=" && !isTemporary(result)) {
+            getVariableOffset(result);
+        }
+        if (iss >> op1) {
+            if (!isTemporary(op1) && !isInteger(op1)) {
+                getVariableOffset(op1);
+            }
+            if (iss >> op >> op2) {
+                if (!isTemporary(op2) && !isInteger(op2)) {
+                    getVariableOffset(op2);
                 }
             }
         }
+    }
 
-        if (stackOffset > 0) {
-            assembly.insert(assembly.begin() + 5, "    sub esp, " + std::to_string(stackOffset));
+    int stackSize = nextOffset - 4;
+    assembly.push_back("    sub esp, " + std::to_string(stackSize));
+
+    std::unordered_set<std::string> usedVariables;
+    std::string lastResult;
+
+    for (const auto& instruction : tac) {
+        std::istringstream iss(instruction);
+        std::string result, eq, op1, op, op2;
+        iss >> result >> eq;
+
+        if (result == "return") {
+            iss >> op1;
+            if (isInteger(op1)) {
+                assembly.push_back("    mov eax, " + op1);
+            } else if (allocatedVariables.find(op1) != allocatedVariables.end()) {
+                assembly.push_back("    mov eax, " + getVariableOffset(op1));
+            }
+            break;
+        } else if (eq == "=") {
+            iss >> op1;
+            if (iss >> op >> op2) {
+                if (op == "+") {
+                    if (isInteger(op1) && isInteger(op2)) {
+                        int value = std::stoi(op1) + std::stoi(op2);
+                        assembly.push_back("    mov eax, " + std::to_string(value));
+                    } else {
+                        if (!isInteger(op1)) {
+                            assembly.push_back("    mov eax, " + getVariableOffset(op1));
+                        } else {
+                            assembly.push_back("    mov eax, " + op1);
+                        }
+                        if (isInteger(op2)) {
+                            assembly.push_back("    add eax, " + op2);
+                        } else {
+                            assembly.push_back("    add eax, " + getVariableOffset(op2));
+                        }
+                    }
+                } else if (op == "-") {
+                    if (isInteger(op1) && isInteger(op2)) {
+                        int value = std::stoi(op1) - std::stoi(op2);
+                        assembly.push_back("    mov eax, " + std::to_string(value));
+                    } else {
+                        if (!isInteger(op1)) {
+                            assembly.push_back("    mov eax, " + getVariableOffset(op1));
+                        } else {
+                            assembly.push_back("    mov eax, " + op1);
+                        }
+                        if (isInteger(op2)) {
+                            assembly.push_back("    sub eax, " + op2);
+                        } else {
+                            assembly.push_back("    sub eax, " + getVariableOffset(op2));
+                        }
+                    }
+                } else if (op == "*") {
+                    if (isInteger(op1) && isInteger(op2)) {
+                        int value = std::stoi(op1) * std::stoi(op2);
+                        assembly.push_back("    mov eax, " + std::to_string(value));
+                    } else {
+                        if (!isInteger(op1)) {
+                            assembly.push_back("    mov eax, " + getVariableOffset(op1));
+                        } else {
+                            assembly.push_back("    mov eax, " + op1);
+                        }
+                        if (isInteger(op2)) {
+                            assembly.push_back("    imul eax, " + op2);
+                        } else {
+                            assembly.push_back("    imul eax, " + getVariableOffset(op2));
+                        }
+                    }
+                } else if (op == "/") {
+                    if (isInteger(op1) && isInteger(op2)) {
+                        int value = std::stoi(op1) / std::stoi(op2);
+                        assembly.push_back("    mov eax, " + std::to_string(value));
+                    } else {
+                        if (!isInteger(op1)) {
+                            assembly.push_back("    mov eax, " + getVariableOffset(op1));
+                        } else {
+                            assembly.push_back("    mov eax, " + op1);
+                        }
+                        if (isInteger(op2)) {
+                            assembly.push_back("    mov ebx, " + op2);
+                        } else {
+                            assembly.push_back("    mov ebx, " + getVariableOffset(op2));
+                        }
+                        assembly.push_back("    xor edx, edx");
+                        assembly.push_back("    div ebx");
+                    }
+                }
+            } else {
+                if (isInteger(op1)) {
+                    assembly.push_back("    mov eax, " + op1);
+                } else {
+                    assembly.push_back("    mov eax, " + getVariableOffset(op1));
+                }
+            }
+            if (!isTemporary(result)) {
+                usedVariables.insert(result);
+                assembly.push_back("    mov " + getVariableOffset(result) + ", eax");
+            }
+            lastResult = result;
         }
-
-        return assembly;
     }
 
-private:
-    bool isInteger(const std::string& s) {
-        return !s.empty() && std::find_if(s.begin(), s.end(), [](unsigned char c) { return !std::isdigit(c) && c != '-'; }) == s.end();
-    }
+
+        assembly.push_back("    mov esp, ebp");
+    assembly.push_back("    pop ebp");
+    assembly.push_back("    ret");
+
+    return assembly;
+}
+
 };
-
 
 class Compiler {
 private:
@@ -606,7 +695,7 @@ public:
 
 int main() {
     std::string sourceCode = R"(
-        x=2+2;
+        x=2;
         return x;
     )";
 
